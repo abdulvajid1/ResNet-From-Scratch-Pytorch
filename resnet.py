@@ -9,23 +9,23 @@ Architecture.png
 """
 
 class ResNetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, padding, stride, identity_matrix=None):
+    def __init__(self, in_channels, out_channels, kernel_size, padding, stride, is_identity=None):
         super().__init__()
 
         self.conv1 = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1),
             nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(0.05),
             )
         
         self.conv2 = nn.Sequential(
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(0.2),
         )
         
         self.conv_identity = None
-        if identity_matrix:
+        if is_identity:
             self.conv_identity = nn.Sequential(
                 nn.Conv2d(out_channels, out_channels*4, kernel_size=1, stride=1)
             )
@@ -35,18 +35,20 @@ class ResNetBlock(nn.Module):
         residual = x
         x = self.conv1(x)
         x = self.conv2(x)
-        
-        if self.conv_identity:
-            x = self.conv_identity(x)
-        
+        x = self.conv_identity(x)
         return residual + x
         
 class ResNet(nn.Module):
-    def __init__(self):
+    def __init__(self, resnet_block):
         super().__init__()
+        self.initial_conv = nn.Sequential(
+            nn.Conv2d(in_channels=224, out_channels=64, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=2)
+            ) # (224) -> (112) -> (56)
         
-        self.conv = nn.Conv2d(in_channels=224, out_channels=64, kernel_size=7, stride=2, padding=3) # (112x112)
-        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2) # (56, 56)
-        
-        # ResNet layers
-        
+    def _create_layer(self, in_channels , num_block, padding, kernel_size=3, is_identity=False):
+        resnet_layers = nn.ModuleList()
+        for i in range(num_block):
+            resnet_layers.append(ResNetBlock(in_channels, in_channels, kernel_size=kernel_size, padding=padding, identity_matrix=is_identity))) 
